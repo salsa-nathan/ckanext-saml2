@@ -1,5 +1,6 @@
 import logging
 import uuid
+import re
 from ckan.common import _
 from saml2 import BINDING_HTTP_REDIRECT
 from ckan.common import _, request
@@ -42,6 +43,14 @@ def _take_from_saml_or_user(key, saml_info, data_dict):
 def _no_permissions(context, msg):
     user = context['user']
     return {'success': False, 'msg': msg.format(user=user)}
+
+
+def _ensure_unique_user_name(email):
+    localpart = email.split('@')[0]
+    cleaned_localpart = re.sub(r'[^\w]', '-', localpart).lower()
+    if model.User.get(cleaned_localpart):
+        return _get_random_username_from_email(email)
+    return cleaned_localpart
 
 
 @logic.auth_sysadmins_check
@@ -425,7 +434,7 @@ class Saml2Plugin(p.SingletonPlugin):
         context = {'schema': user_schema, 'ignore_auth': True}
         if is_new_user:
             email = _take_from_saml_or_user('email', saml_info, data_dict)
-            new_user_username = _get_random_username_from_email(email)
+            new_user_username = _ensure_unique_user_name(email)
             name_id = _take_from_saml_or_user('id', saml_info, data_dict)
             data_dict['name'] = new_user_username
             data_dict['id'] = unicode(uuid.uuid4())
