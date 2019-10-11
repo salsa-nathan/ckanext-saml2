@@ -20,6 +20,7 @@ from saml2.ident import decode as unserialise_nameid
 from saml2.s2repoze.plugins.sp import SAML2Plugin
 from ckan.logic.action.create import _get_random_username_from_email
 from ckanext.saml2.model.saml2_user import SAML2User
+from ckanext.saml2.config.sp_config import CONFIG as SAML2_CONFIG
 from sqlalchemy.sql.expression import or_
 from sqlalchemy import func
 from ckan.logic.action.delete import user_delete as ckan_user_delete
@@ -579,14 +580,14 @@ class Saml2Plugin(p.SingletonPlugin):
     def logout(self):
         """Logout definition."""
         environ = p.toolkit.request.environ
-
+        domain = p.toolkit.request.environ['HTTP_HOST']
         userobj = p.toolkit.c.userobj
+
         sp_initiates_slo = p.toolkit.asbool(config.get('saml2.sp_initiates_slo', True))
         if not sp_initiates_slo or userobj and is_local_user(userobj):
             plugins = environ['repoze.who.plugins']
             friendlyform_plugin = plugins.get('friendlyform')
             rememberer = environ['repoze.who.plugins'][friendlyform_plugin.rememberer_name]
-            domain = p.toolkit.request.environ['HTTP_HOST']
             base.response.delete_cookie(rememberer.cookie_name, domain='.' + domain)
             base.response.delete_cookie(rememberer.cookie_name)
             h.redirect_to(controller='home', action='index')
@@ -597,7 +598,7 @@ class Saml2Plugin(p.SingletonPlugin):
 
         # Taken from saml2.client:global_logout but forces
         # HTTP-Redirect binding.
-        entity_ids = client.saml_client.users.issuers_of_info(name_id)
+        entity_ids = SAML2_CONFIG['service']['sp']['idp']
         saml_logout = client.saml_client.do_logout(name_id, entity_ids,
                                                    reason='urn:oasis:names:tc:SAML:2.0:logout:user',
                                                    expire=None, sign=True,
@@ -605,7 +606,8 @@ class Saml2Plugin(p.SingletonPlugin):
                                                    sign_alg="rsa-sha256", digest_alg="hmac-sha256")
 
         rem = environ['repoze.who.plugins'][client.rememberer_name]
-        rem.forget(environ, subject_id)
+        base.response.delete_cookie(rem.cookie_name, domain='.' + domain)
+        base.response.delete_cookie(rem.cookie_name)
 
         # Redirect to send the logout request to the IdP, using the
         # url in saml_logout. Assumes only one IdP will be returned.

@@ -5,7 +5,8 @@ use = repoze.who.plugins.auth_tkt:make_plugin
 use = repoze.who.plugins.friendlyform:FriendlyFormPlugin
 login_form_url= /user/login
 login_handler_path = /login_generic
-logout_handler_path = /user/logout
+# Let ckanext-saml2 handle the logout
+logout_handler_path = /user/logoutxxx
 rememberer_name = auth_tkt
 post_login_url = /user/logged_in
 post_logout_url = /user/logged_out
