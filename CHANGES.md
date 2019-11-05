@@ -1,5 +1,13 @@
 # ckanext-saml2 change log
 
+## 0.4.0
+
+* Support for CKAN 2.8 (only basic features tested)
+* Fix logout logic
+* Don't add random characters to all new accounts
+* Consolidate the id stored against the Saml2 user to avoid duplicates
+
+
 ## 0.3.0
 
 * Added a script ckanext/saml2/admin/fresh_idp_metadata.py to keep IdP
