@@ -577,10 +577,30 @@ class Saml2Plugin(p.SingletonPlugin):
             return base.abort(401)
         h.redirect_to(controller='user', action='dashboard')
 
+    def _clear_cookies_and_redirect(self, cookie_name, location=None):
+
+        domain = p.toolkit.request.environ['HTTP_HOST']
+
+        if not location:
+            location = p.toolkit.url_for(controller='home', action='index')
+
+        if p.toolkit.check_ckan_version(min_version='2.8.0'):
+            # CKAN >= 2.8, request served by Flask
+
+            resp = h.redirect_to(location)
+            resp.set_cookie(cookie_name, domain='.' + domain, expires=0)
+            resp.set_cookie(cookie_name, expires=0)
+
+            return resp
+        else:
+            # CKAN < 2.8, request served by Pylons
+            base.response.delete_cookie(cookie_name, domain='.' + domain)
+            base.response.delete_cookie(cookie_name)
+            h.redirect_to(location)
+
     def logout(self):
         """Logout definition."""
         environ = p.toolkit.request.environ
-        domain = p.toolkit.request.environ['HTTP_HOST']
         userobj = p.toolkit.c.userobj
 
         sp_initiates_slo = p.toolkit.asbool(config.get('saml2.sp_initiates_slo', True))
@@ -588,9 +608,10 @@ class Saml2Plugin(p.SingletonPlugin):
             plugins = environ['repoze.who.plugins']
             friendlyform_plugin = plugins.get('friendlyform')
             rememberer = environ['repoze.who.plugins'][friendlyform_plugin.rememberer_name]
-            base.response.delete_cookie(rememberer.cookie_name, domain='.' + domain)
-            base.response.delete_cookie(rememberer.cookie_name)
-            h.redirect_to(controller='home', action='index')
+            cookie_name = rememberer.cookie_name
+            location = h.url_for(controller='home', action='index')
+
+            return self._clear_cookies_and_redirect(cookie_name, location)
 
         subject_id = environ["repoze.who.identity"]['repoze.who.userid']
         name_id = unserialise_nameid(subject_id)
@@ -605,16 +626,14 @@ class Saml2Plugin(p.SingletonPlugin):
                                                    expected_binding=BINDING_HTTP_REDIRECT,
                                                    sign_alg="rsa-sha256", digest_alg="hmac-sha256")
 
-        rem = environ['repoze.who.plugins'][client.rememberer_name]
-        base.response.delete_cookie(rem.cookie_name, domain='.' + domain)
-        base.response.delete_cookie(rem.cookie_name)
+        cookie_name = environ['repoze.who.plugins'][client.rememberer_name].cookie_name
 
         # Redirect to send the logout request to the IdP, using the
         # url in saml_logout. Assumes only one IdP will be returned.
         for key in saml_logout.keys():
             location = saml_logout[key][1]['headers'][0][1]
             log.debug("IdP logout URL = {0}".format(location))
-            h.redirect_to(location)
+            return self._clear_cookies_and_redirect(cookie_name, location)
 
     def abort(self, status_code, detail, headers, comment):
         """
