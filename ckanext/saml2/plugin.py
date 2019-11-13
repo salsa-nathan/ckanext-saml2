@@ -285,16 +285,15 @@ class Saml2Plugin(p.SingletonPlugin):
         self.organization_mapping = m
 
     def before_map(self, map):
-        """Add few routes."""
-        with SubMapper(
-                map, controller='ckanext.saml2.plugin:Saml2Controller') as m:
-            m.connect('saml2_unauthorized', '/saml2_unauthorized',
-                      action='saml2_unauthorized')
+        """Custom routes for Pylons based controller (CKAN<=2.7)"""
 
-            if p.toolkit.check_ckan_version(max_version='2.8.0'):
+        if p.toolkit.check_ckan_version(max_version='2.8.0'):
+            with SubMapper(
+                    map, controller='ckanext.saml2.plugin:Saml2Controller') as m:
                 m.connect('staff_login', '/service/login', action='staff_login')
-                m.connect('saml2_user_edit', '/user/edit/{id:.*}', action='edit',
-                          ckan_icon='cog')
+                m.connect(
+                    'saml2_user_edit', '/user/edit/{id:.*}', action='edit',
+                    ckan_icon='cog')
         return map
 
     def get_blueprint(self):
@@ -303,7 +302,8 @@ class Saml2Plugin(p.SingletonPlugin):
         blueprint.add_url_rule(rule='/service/login', view_func=native_login)
 
         _saml2_edit_view = Saml2UserEditView.as_view(str(u'edit'))
-        blueprint.add_url_rule(rule=u'/user/edit/<id>', view_func=_saml2_edit_view)
+        blueprint.add_url_rule(
+            rule=u'/user/edit/<id>', view_func=_saml2_edit_view)
 
         return blueprint
 
@@ -660,21 +660,6 @@ class Saml2Plugin(p.SingletonPlugin):
             log.debug("IdP logout URL = {0}".format(location))
             return self._clear_cookies_and_redirect(cookie_name, location)
 
-    def abort(self, status_code, detail, headers, comment):
-        """
-        HTTP Status 401 causes a login redirect.
-
-        We need to prevent this unless we are actually trying to login.
-        """
-        if (status_code == 401 and
-           toolkit.request.environ['PATH_INFO'] != '/user/login'):
-                if not toolkit.c.user:
-                    if NATIVE_LOGIN_ENABLED:
-                        h.flash_error(_('Requires authentication'))
-                    h.redirect_to('login', came_from=h.full_current_url())
-                h.redirect_to('saml2_unauthorized')
-        return (status_code, detail, headers, comment)
-
     def get_auth_functions(self):
         """We need to prevent some actions being authorized."""
         return {
@@ -713,15 +698,6 @@ class Saml2UserEditView(UserEditView):
 
 class Saml2Controller(UserController):
     """SAML2 Controller."""
-
-    _get_repoze_handler = UserController._get_repoze_handler
-
-    def saml2_unauthorized(self):
-        """Our you are not authorized page."""
-        c = toolkit.c
-        c.code = 401
-        c.content = toolkit._('You are not authorized to do this')
-        return toolkit.render('error_document_template.html')
 
     def staff_login(self):
         """Default login page for staff members."""
