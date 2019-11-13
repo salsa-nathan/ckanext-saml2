@@ -278,7 +278,6 @@ class Saml2Plugin(p.SingletonPlugin):
                 map, controller='ckanext.saml2.plugin:Saml2Controller') as m:
             m.connect('saml2_unauthorized', '/saml2_unauthorized',
                       action='saml2_unauthorized')
-            m.connect('saml2_slo', '/slo', action='slo')
             m.connect('staff_login', '/service/login', action='staff_login')
             m.connect('saml2_user_edit', '/user/edit/{id:.*}', action='edit',
                       ckan_icon='cog')
@@ -682,40 +681,6 @@ class Saml2Controller(UserController):
         c.code = 401
         c.content = p.toolkit._('You are not authorized to do this')
         return p.toolkit.render('error_document_template.html')
-
-    def slo(self):
-        """SAML magic."""
-        environ = p.toolkit.request.environ
-        # so here I might get either a LogoutResponse or a LogoutRequest
-        if 'QUERY_STRING' in environ:
-            saml_resp = p.toolkit.request.GET.get('SAMLResponse', '')
-            saml_req = p.toolkit.request.GET.get('SAMLRequest', '')
-
-            if saml_req:
-                log.debug('Received SLO request from IdP')
-                # pysaml2 takes care of everything here via its
-                # repoze.who plugin
-            elif saml_resp:
-             #   # fix the cert so that it is on multiple lines
-             #   out = []
-             #   # if on multiple lines make it a single one
-             #   line = ''.join(saml_resp.split('\n'))
-             #   while len(line) > 64:
-             #       out.append(line[:64])
-             #       line = line[64:]
-             #   out.append(line)
-             #   saml_resp = '\n'.join(out)
-             #   try:
-             #       res = client.saml_client.logout_request_response(
-             #           saml_resp,
-             #           binding=BINDING_HTTP_REDIRECT
-             #       )
-             #   except KeyError:
-             #       # return error reply
-             #       pass
-
-                delete_cookies()
-                h.redirect_to(controller='user', action='logged_out')
 
     def staff_login(self):
         """Default login page for staff members."""
