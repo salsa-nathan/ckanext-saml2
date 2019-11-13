@@ -600,7 +600,11 @@ class Saml2Plugin(p.SingletonPlugin):
                         c.came_from = came_from
                     return
             return base.abort(401)
-        h.redirect_to(controller='user', action='dashboard')
+
+        if toolkit.check_ckan_version(min_version='2.8.0'):
+            return h.redirect_to('dashboard.index')
+        else:
+            h.redirect_to(controller='user', action='dashboard')
 
     def _clear_cookies_and_redirect(self, cookie_name, location=None):
 
