@@ -25,6 +25,13 @@ from ckan.logic.action.update import user_update as ckan_user_update
 from ckanext.saml2.config.sp_config import CONFIG as SAML2_CONFIG
 from ckanext.saml2.model.saml2_user import SAML2User
 
+if toolkit.check_ckan_version(min_version='2.8.0'):
+    from flask import Blueprint
+    from ckan.views.user import (
+        EditView as UserEditView,
+        login as core_login,
+    )
+
 
 log = logging.getLogger('ckanext.saml2')
 
@@ -254,6 +261,8 @@ class Saml2Plugin(p.SingletonPlugin):
     p.implements(p.IConfigurable)
     p.implements(p.ITemplateHelpers)
     p.implements(p.IActions)
+    if toolkit.check_ckan_version(min_version='2.8.0'):
+        p.implements(p.IBlueprint)
 
     def update_config(self, config):
         """Update environment config."""
@@ -281,10 +290,22 @@ class Saml2Plugin(p.SingletonPlugin):
                 map, controller='ckanext.saml2.plugin:Saml2Controller') as m:
             m.connect('saml2_unauthorized', '/saml2_unauthorized',
                       action='saml2_unauthorized')
-            m.connect('staff_login', '/service/login', action='staff_login')
-            m.connect('saml2_user_edit', '/user/edit/{id:.*}', action='edit',
-                      ckan_icon='cog')
+
+            if p.toolkit.check_ckan_version(max_version='2.8.0'):
+                m.connect('staff_login', '/service/login', action='staff_login')
+                m.connect('saml2_user_edit', '/user/edit/{id:.*}', action='edit',
+                          ckan_icon='cog')
         return map
+
+    def get_blueprint(self):
+        blueprint = Blueprint('saml2', self.__module__)
+
+        blueprint.add_url_rule(rule='/service/login', view_func=native_login)
+
+        _saml2_edit_view = Saml2UserEditView.as_view(str(u'edit'))
+        blueprint.add_url_rule(rule=u'/user/edit/<id>', view_func=_saml2_edit_view)
+
+        return blueprint
 
     def make_password(self):
         """Create a hard to guess password."""
@@ -300,6 +321,7 @@ class Saml2Plugin(p.SingletonPlugin):
         c.user contains the saml2 id of the logged in user we need to
         convert this to represent the ckan user.
         """
+
         # Can we find the user?
         c = toolkit.c
         environ = toolkit.request.environ
@@ -565,9 +587,10 @@ class Saml2Plugin(p.SingletonPlugin):
         c = toolkit.c
         if not c.user:
             try:
-                if toolkit.request.environ['pylons.routes_dict']['action'] == 'staff_login':
+                if toolkit.c.action in (
+                        'staff_login', 'native_login', 'logged_in'):
                     return
-            except Exception:
+            except AttributeError:
                 pass
             if NATIVE_LOGIN_ENABLED:
                 c.sso_button_text = config.get('saml2.login_form_sso_text')
@@ -671,6 +694,21 @@ class Saml2Plugin(p.SingletonPlugin):
             'user_delete': saml2_user_delete,
             'user_update': saml2_user_update
         }
+
+
+def native_login():
+    return core_login()
+
+
+class Saml2UserEditView(UserEditView):
+
+    def post(self, id=None):
+        saml2_set_context_variables_after_check_for_user_update(id)
+        return super(Saml2UserEditView, self).post(id)
+
+    def get(self, id=None, data=None, errors=None, error_summary=None):
+        saml2_set_context_variables_after_check_for_user_update(id)
+        return super(Saml2UserEditView, self).get(id, data, errors, error_summary)
 
 
 class Saml2Controller(UserController):
