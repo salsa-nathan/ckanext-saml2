@@ -41,7 +41,10 @@ config = toolkit.config
 
 
 DELETE_USERS_PERMISSION = 'delete_users'
-NATIVE_LOGIN_ENABLED = toolkit.asbool(config.get('saml2.enable_native_login'))
+
+
+def _get_native_login_enabled():
+    return toolkit.asbool(config.get('saml2.enable_native_login'))
 
 
 def _take_from_saml_or_user(key, saml_info, data_dict):
@@ -71,7 +74,7 @@ def _ensure_unique_user_name(email):
 def user_create(context, data_dict):
     """Deny user creation."""
     msg = toolkit._('Users cannot be created.')
-    if NATIVE_LOGIN_ENABLED:
+    if _get_native_login_enabled():
         return logic.auth.create.user_create(context, data_dict)
     return _no_permissions(context, msg)
 
@@ -81,7 +84,7 @@ def user_create(context, data_dict):
 def user_reset(context, data_dict):
     """Deny user reset."""
     msg = toolkit._('Users cannot reset passwords.')
-    if NATIVE_LOGIN_ENABLED:
+    if _get_native_login_enabled():
         return logic.auth.get.user_reset(context, data_dict)
     return _no_permissions(context, msg)
 
@@ -93,7 +96,7 @@ def request_reset(context, data_dict):
     msg = toolkit._('Users cannot reset passwords.')
     method = toolkit.request.method
     username = toolkit.request.params.get('user', '')
-    if NATIVE_LOGIN_ENABLED:
+    if _get_native_login_enabled():
         user = model.User.get(username)
         if method == 'GET' or user is None or (
                 method == 'POST' and is_local_user(user)):
@@ -592,7 +595,7 @@ class Saml2Plugin(p.SingletonPlugin):
                     return
             except AttributeError:
                 pass
-            if NATIVE_LOGIN_ENABLED:
+            if _get_native_login_enabled():
                 c.sso_button_text = config.get('saml2.login_form_sso_text')
                 if toolkit.request.params.get('type') != 'sso':
                     came_from = toolkit.request.params.get('came_from', None)
