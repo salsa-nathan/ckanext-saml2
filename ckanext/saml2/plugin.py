@@ -290,6 +290,10 @@ class Saml2Plugin(p.SingletonPlugin):
     def before_map(self, map):
         """Custom routes for Pylons based controller (CKAN<=2.7)"""
 
+        with SubMapper(
+                map, controller='ckanext.saml2.plugin:Saml2Controller') as m:
+            m.connect('acs', '/acs', action='acs')
+
         if p.toolkit.check_ckan_version(max_version='2.8.0'):
             with SubMapper(
                     map, controller='ckanext.saml2.plugin:Saml2Controller') as m:
@@ -686,6 +690,12 @@ class Saml2Plugin(p.SingletonPlugin):
             'user_delete': saml2_user_delete,
             'user_update': saml2_user_update
         }
+
+    def acs(self):
+        if p.toolkit.check_ckan_version(min_version='2.8.0'):
+            return h.redirect_to('dashboard.index')
+        else:
+            h.redirect_to(controller='user', action='dashboard')
 
 
 def native_login():
